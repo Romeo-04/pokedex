@@ -69,6 +69,10 @@ function HomeContent() {
   const [initialLoading, setInitialLoading] = useState(true);
   const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
 
+  // Bumped when any card toggles a favorite so filteredSorted recomputes
+  const [favVersion, setFavVersion] = useState(0);
+  const handleFavToggle = useCallback(() => setFavVersion((v) => v + 1), []);
+
   // Refs for stable callbacks / intersection observer
   const detailCache = useRef<Map<number, PokemonDetail>>(new Map());
   const offsetRef = useRef(0);
@@ -259,6 +263,8 @@ function HomeContent() {
   const baseItems = isSearching ? searchResults : all;
 
   const filteredSorted = useMemo(() => {
+    // favVersion is in the dep list so this recomputes when any star is toggled
+    void favVersion;
     const favs = favoritesOnly ? new Set(getFavorites()) : null;
     let out = baseItems;
 
@@ -277,7 +283,7 @@ function HomeContent() {
     });
 
     return out;
-  }, [baseItems, sort, selectedTypes, favoritesOnly]);
+  }, [baseItems, sort, selectedTypes, favoritesOnly, favVersion]);
 
   /* ------------------------------------------------------------------ */
   /*  Render                                                            */
@@ -327,11 +333,12 @@ function HomeContent() {
           items={filteredSorted}
           loading={initialLoading}
           loadingMore={loading && all.length > 0 && !isSearching}
+          onFavToggle={handleFavToggle}
         />
       )}
 
-      {/* Infinite-scroll sentinel */}
-      {canLoadMore && !isSearching && (
+      {/* Infinite-scroll sentinel — disabled when favoritesOnly to prevent infinite loading */}
+      {canLoadMore && !isSearching && !favoritesOnly && (
         <div ref={sentinelRef} className="h-1" />
       )}
 

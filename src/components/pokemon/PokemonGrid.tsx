@@ -6,10 +6,12 @@ export function PokemonGrid ({
     items,
     loading,
     loadingMore = false,
+    onFavToggle,
 }: {
     items: PokemonDetail[];
     loading: boolean;
     loadingMore?: boolean;
+    onFavToggle?: () => void;
 }) {
     return (
         <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -18,7 +20,7 @@ export function PokemonGrid ({
                   <PokemonCardSkeleton key={idx} />
                 ))
               : items.map((pokemon) => (
-                  <PokemonCard key={pokemon.id} p={pokemon} />
+                  <PokemonCard key={pokemon.id} p={pokemon} onFavToggle={onFavToggle} />
                 ))}
             {loadingMore &&
               Array.from({ length: 8 }).map((_, idx) => (

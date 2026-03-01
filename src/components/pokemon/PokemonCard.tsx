@@ -10,7 +10,7 @@ import { PokemonDetail } from "@/lib/types";
 import { TypeBadge } from "./TypeBadge";
 import { getFavorites, toggleFavorite } from "@/lib/favorites";
 
-export function PokemonCard({ p }: { p: PokemonDetail }) {
+export function PokemonCard({ p, onFavToggle }: { p: PokemonDetail; onFavToggle?: () => void }) {
   const [isFav, setIsFav] = useState(() => {
     if (typeof window === "undefined") return false;
     return getFavorites().includes(p.id);
@@ -43,6 +43,7 @@ export function PokemonCard({ p }: { p: PokemonDetail }) {
               onClick={() => {
                 toggleFavorite(p.id);
                 setIsFav(getFavorites().includes(p.id));
+                onFavToggle?.();
               }}
             >
               <span className="text-lg">{isFav ? "★" : "☆"}</span>
