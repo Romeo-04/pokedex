@@ -53,3 +53,8 @@ export async function fetchDetailsForPage(names: string[], concurrency = 6){
     return mapLimit(names, concurrency, (n)=> fetchPokemonDetailByName(n));
 }
 
+/** Lightweight call that returns every Pokémon name + URL (no details). */
+export async function fetchAllPokemonNames(){
+    return apiGet<PokemonListResponse>(`/pokemon?limit=100000&offset=0`);
+}
+
