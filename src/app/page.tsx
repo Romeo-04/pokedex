@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { PokemonGrid } from "@/components/pokemon/PokemonGrid";
@@ -25,6 +25,21 @@ function parseTypes(raw: string | null) {
 }
 
 export default function HomePage() {
+  return (
+    <Suspense fallback={
+      <main className="mx-auto max-w-6xl px-4 py-8 space-y-6">
+        <header className="space-y-1">
+          <h1 className="text-3xl font-bold">Pokedex</h1>
+          <p className="text-muted-foreground">Loading...</p>
+        </header>
+      </main>
+    }>
+      <HomeContent />
+    </Suspense>
+  );
+}
+
+function HomeContent() {
   const router = useRouter();
   const sp = useSearchParams();
 
