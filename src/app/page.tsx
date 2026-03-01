@@ -1,6 +1,13 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { PokemonGrid } from "@/components/pokemon/PokemonGrid";
@@ -13,6 +20,7 @@ import {
 } from "@/lib/pokeapi";
 import { PokemonDetail, PokemonListItem } from "@/lib/types";
 import { getFavorites } from "@/lib/favorites";
+import Image from "next/image";
 
 const PAGE_SIZE = 20;
 
@@ -26,14 +34,22 @@ function parseTypes(raw: string | null) {
 
 export default function HomePage() {
   return (
-    <Suspense fallback={
-      <main className="mx-auto max-w-6xl px-4 py-8 space-y-6">
-        <header className="space-y-1">
-          <h1 className="text-3xl font-bold">Pokedex</h1>
-          <p className="text-muted-foreground">Loading...</p>
-        </header>
-      </main>
-    }>
+    <Suspense
+      fallback={
+        <main className="mx-auto max-w-6xl px-4 py-8 space-y-6">
+          <header className="space-y-1">
+            <Image
+              src="/pokeball_logo.png"
+              width={128}
+              height={128}
+              alt="Pokedex Logo"
+            />
+            <h1 className="text-3xl font-bold">Pokedex</h1>
+            <p className="text-muted-foreground">Loading...</p>
+          </header>
+        </main>
+      }
+    >
       <HomeContent />
     </Suspense>
   );
@@ -46,10 +62,10 @@ function HomeContent() {
   // URL-backed filter state
   const [search, setSearch] = useState(sp.get("q") ?? "");
   const [sort, setSort] = useState<SortKey>(
-    (sp.get("sort") as SortKey) ?? "id"
+    (sp.get("sort") as SortKey) ?? "id",
   );
   const [selectedTypes, setSelectedTypes] = useState<string[]>(
-    parseTypes(sp.get("types"))
+    parseTypes(sp.get("types")),
   );
   const [favoritesOnly, setFavoritesOnly] = useState(sp.get("fav") === "1");
 
@@ -121,7 +137,7 @@ function HomeContent() {
       offsetRef.current += PAGE_SIZE;
     } catch (e: unknown) {
       setLoadMoreError(
-        e instanceof Error ? e.message : "Failed to load Pokemon."
+        e instanceof Error ? e.message : "Failed to load Pokemon.",
       );
     } finally {
       loadingRef.current = false;
@@ -188,14 +204,14 @@ function HomeContent() {
             .slice(0, 20);
 
           const cachedNames = new Set(
-            [...detailCache.current.values()].map((c) => c.name)
+            [...detailCache.current.values()].map((c) => c.name),
           );
           const needsFetch = matches.filter((m) => !cachedNames.has(m.name));
 
           if (needsFetch.length > 0) {
             const details = await fetchDetailsForPage(
               needsFetch.map((m) => m.name),
-              6
+              6,
             );
             for (const p of details) {
               detailCache.current.set(p.id, p);
@@ -236,7 +252,7 @@ function HomeContent() {
           loadPage();
         }
       },
-      { rootMargin: "300px" }
+      { rootMargin: "300px" },
     );
 
     observer.observe(sentinel);
@@ -248,7 +264,7 @@ function HomeContent() {
   /* ------------------------------------------------------------------ */
   function toggleType(t: string) {
     setSelectedTypes((prev) =>
-      prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]
+      prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t],
     );
   }
 
@@ -291,7 +307,15 @@ function HomeContent() {
   return (
     <main className="mx-auto max-w-6xl px-4 py-8 space-y-6">
       <header className="space-y-1">
-        <h1 className="text-3xl font-bold">Pokedex</h1>
+        <div className="flex flex-row items-center">
+          <Image
+            src="/pokeball_logo.png"
+            width={64}
+            height={64}
+            alt="Pokedex Logo"
+          />
+          <h1 className="text-3xl font-bold">Pokedex</h1>
+        </div>
         <p className="text-muted-foreground">
           Shareable filters, favorites, and type matchups.
         </p>
@@ -345,10 +369,7 @@ function HomeContent() {
       {/* Fallback manual button */}
       {!isSearching && (
         <div className="flex justify-center py-4">
-          <Button
-            onClick={() => loadPage()}
-            disabled={!canLoadMore || loading}
-          >
+          <Button onClick={() => loadPage()} disabled={!canLoadMore || loading}>
             {loading
               ? "Loading..."
               : canLoadMore
