@@ -16,6 +16,7 @@ import {
   fetchAllPokemonNames,
   fetchDetailsForPage,
   fetchPokemonDetailById,
+  fetchPokemonNamesByType,
   fetchPokemonPage,
 } from "@/lib/pokeapi";
 import { PokemonDetail, PokemonListItem } from "@/lib/types";
@@ -80,6 +81,10 @@ function HomeContent() {
   const [searchResults, setSearchResults] = useState<PokemonDetail[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
 
+  // Async type-filter results
+  const [typeResults, setTypeResults] = useState<PokemonDetail[]>([]);
+  const [typeLoading, setTypeLoading] = useState(false);
+
   // Loading states
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -91,6 +96,8 @@ function HomeContent() {
 
   // Refs for stable callbacks / intersection observer
   const detailCache = useRef<Map<number, PokemonDetail>>(new Map());
+  // Per-type name list cache so we don't re-fetch the same type twice
+  const typeNameCache = useRef<Map<string, string[]>>(new Map());
   const offsetRef = useRef(0);
   const loadingRef = useRef(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -164,6 +171,87 @@ function HomeContent() {
     }
     init();
   }, [loadPage]);
+
+  /* ------------------------------------------------------------------ */
+  /*  Async type filter - streams results in chunks of 10              */
+  /* ------------------------------------------------------------------ */
+  useEffect(() => {
+    if (selectedTypes.length === 0) {
+      setTypeResults([]);
+      setTypeLoading(false);
+      return;
+    }
+
+    setTypeLoading(true);
+    setTypeResults([]);
+    let cancelled = false;
+
+    async function fetchTypes() {
+      try {
+        // Fetch name lists for each selected type (cached per type)
+        const perTypeLists = await Promise.all(
+          selectedTypes.map(async (type) => {
+            if (typeNameCache.current.has(type)) {
+              return typeNameCache.current.get(type)!;
+            }
+            const names = await fetchPokemonNamesByType(type);
+            typeNameCache.current.set(type, names);
+            return names;
+          }),
+        );
+
+        if (cancelled) return;
+
+        // OR union: combine all type lists, deduplicate
+        const names = Array.from(new Set(perTypeLists.flat()));
+
+        // Names already in cache can be shown immediately
+        const cachedNames = new Set(
+          [...detailCache.current.values()].map((p) => p.name),
+        );
+        const alreadyCached = names
+          .filter((n) => cachedNames.has(n))
+          .map((n) => [...detailCache.current.values()].find((p) => p.name === n))
+          .filter((p): p is PokemonDetail => p !== undefined);
+
+        if (alreadyCached.length > 0 && !cancelled) {
+          setTypeResults(alreadyCached);
+        }
+
+        // Fetch uncached names in chunks of 10 so cards appear progressively
+        const needsFetch = names.filter((n) => !cachedNames.has(n));
+        const CHUNK = 10;
+
+        for (let i = 0; i < needsFetch.length; i += CHUNK) {
+          if (cancelled) return;
+          const chunk = needsFetch.slice(i, i + CHUNK);
+          const details = await fetchDetailsForPage(chunk, 6);
+          if (cancelled) return;
+
+          for (const p of details) {
+            detailCache.current.set(p.id, p);
+          }
+
+          // Re-derive results from cache in original name order
+          setTypeResults(() => {
+            const allCached = [...detailCache.current.values()];
+            return names
+              .map((name) => allCached.find((p) => p.name === name))
+              .filter((p): p is PokemonDetail => p !== undefined);
+          });
+        }
+      } catch {
+        setTypeResults([]);
+      } finally {
+        if (!cancelled) setTypeLoading(false);
+      }
+    }
+
+    fetchTypes();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedTypes]);
 
   /* ------------------------------------------------------------------ */
   /*  Async search - fetches Pokemon not yet in cache on-demand         */
@@ -276,7 +364,12 @@ function HomeContent() {
   /*  Filter + sort the display list                                    */
   /* ------------------------------------------------------------------ */
   const isSearching = search.trim().length > 0;
-  const baseItems = isSearching ? searchResults : all;
+  const isTypeFiltering = selectedTypes.length > 0 && !isSearching;
+  const baseItems = isSearching
+    ? searchResults
+    : isTypeFiltering
+      ? typeResults
+      : all;
 
   const filteredSorted = useMemo(() => {
     // favVersion is in the dep list so this recomputes when any star is toggled
@@ -345,9 +438,13 @@ function HomeContent() {
         </div>
       )}
 
-      {isSearching && searchLoading && filteredSorted.length === 0 ? (
+      {(isSearching && searchLoading && filteredSorted.length === 0) ||
+      (isTypeFiltering && typeLoading && filteredSorted.length === 0) ? (
         <PokemonGrid items={[]} loading={true} loadingMore={false} />
-      ) : filteredSorted.length === 0 && !loading && !searchLoading ? (
+      ) : filteredSorted.length === 0 &&
+        !loading &&
+        !searchLoading &&
+        !typeLoading ? (
         <div className="rounded-md border p-6 text-sm text-muted-foreground">
           No Pokemon match your filters yet. Try a different search or clear
           filters.
@@ -355,19 +452,22 @@ function HomeContent() {
       ) : (
         <PokemonGrid
           items={filteredSorted}
-          loading={initialLoading}
-          loadingMore={loading && all.length > 0 && !isSearching}
+          loading={initialLoading || (isTypeFiltering && typeLoading && typeResults.length === 0)}
+          loadingMore={
+            (loading && all.length > 0 && !isSearching && !isTypeFiltering) ||
+            (isTypeFiltering && typeLoading && typeResults.length > 0)
+          }
           onFavToggle={handleFavToggle}
         />
       )}
 
-      {/* Infinite-scroll sentinel — disabled when favoritesOnly to prevent infinite loading */}
-      {canLoadMore && !isSearching && !favoritesOnly && (
+      {/* Infinite-scroll sentinel — disabled when filtering by type or favorites */}
+      {canLoadMore && !isSearching && !favoritesOnly && !isTypeFiltering && (
         <div ref={sentinelRef} className="h-1" />
       )}
 
-      {/* Fallback manual button */}
-      {!isSearching && (
+      {/* Fallback manual button — hidden when type filtering (all results already loaded) */}
+      {!isSearching && !isTypeFiltering && (
         <div className="flex justify-center py-4">
           <Button onClick={() => loadPage()} disabled={!canLoadMore || loading}>
             {loading
